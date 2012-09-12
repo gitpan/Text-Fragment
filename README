@@ -1,0 +1,316 @@
+NAME
+    Text::Fragment - Manipulate fragments in text
+
+VERSION
+    version 0.01
+
+SYNOPSIS
+     use Text::Fragment qw(list_fragments
+                           get_fragment
+                           set_fragment_attrs
+                           insert_fragment
+                           delete_fragment);
+
+     my $text = <<_;
+     foo = "some value"
+     baz = 0
+     _
+
+    To insert a fragment:
+
+     my $res = insert_fragment(text=>$text, id=>'bar', payload=>'bar = 2');
+
+    "$res->[2]{text}" will now contain:
+
+     foo = "some value"
+     baz = 0
+     bar = 2 # FRAGMENT id=bar
+
+    To replace a fragment:
+
+     $res = insert_fragment(text=>$res->[2], id='bar', payload=>'bar = 3');
+
+    "$res->[2]{text}" will now contain:
+
+     foo = "some value"
+     baz = 0
+     bar = 3 # FRAGMENT id=bar
+
+    and "$res->[2]{orig_payload}" will contain the payload before being
+    replaced:
+
+     bar = 2
+
+    To delete a fragment:
+
+     $res = delete_fragment(text=>$res->[2], id=>'bar');
+
+    To list fragments:
+
+     $res = list_fragment(text=>$text);
+
+    To get a fragment:
+
+     $res = get_fragment(text=>$text, id=>'bar');
+
+    To set fragment attributes:
+
+     $res = se_fragment_attrs(text=>$text, id=>'bar', attrs=>{name=>'val', ...});
+
+DESCRIPTION
+    A fragment is a single line or a group of lines (called payload) with a
+    metadata encoded in the comment that is put adjacent to it (for a single
+    line fragment) or enclosing it (for a multiline fragment). Fragments are
+    usually used in configuration files or code. Here is the structure of a
+    single-line fragment:
+
+        <payload> # <label> <attrs>
+
+    Here is the structure of a multi-line fragment:
+
+        # BEGIN <label> <attrs>
+        <payload>
+        # END <label> [<attrs>]
+
+    Label is by default "FRAGMENT" but can be other string. Attributes are a
+    sequence of "name=val" separated by whitespace, where name must be
+    alphanums only and val is zero or more non-whitespace characters. There
+    must at least be an attribute with name "id", it is used to identify
+    fragment and allow the fragment to be easily replaced/modified/deleted
+    from text. Attributes are optional in the ending comment.
+
+    Comment character used is by default "#" ("shell"-style comment), but
+    other comment styles are supported (see below).
+
+    Examples of single-line fragments (the second example uses "c"-style
+    comment and the third uses "cpp"-style comment):
+
+        RSYNC_ENABLE=1 # FRAGMENT id=enable
+        some text /* FRAGMENT id=id2 */
+        some text // FRAGMENT id=id3 foo=1 bar=2
+
+    An example of multi-line fragment (using "html"-style comment instead of
+    "shell"):
+
+        <!-- BEGIN FRAGMENT id=id4 -->
+        some
+        lines
+        of
+        text
+        <!-- END FRAGMENT id=id4 -->
+
+    Another example (using "ini"-style comment):
+
+        ; BEGIN FRAGMENT id=default-settings
+        register_globals=On
+        extension=mysql.so
+        extension=gd.so
+        memory_limit=256M
+        post_max_size=64M
+        upload_max_filesize=64M
+        browscap=/c/share/php/browscap.ini
+        allow_url_fopen=0
+        ; END FRAGMENT
+
+    This module has Rinci metadata.
+
+FUNCTIONS
+    None are exported by default, but they are exportable.
+
+  delete_fragment(%args) -> [status, msg, result, meta]
+    Delete fragment in text.
+
+    If there are multiple occurences of fragment (which is considered an
+    abnormal condition), all occurences will be deleted.
+
+    Arguments ('*' denotes required arguments):
+
+    *   comment_style => *str* (default: "shell")
+
+        Comment style.
+
+    *   id* => *str*
+
+        Fragment ID.
+
+    *   label => *code|str* (default: "FRAGMENT")
+
+        Comment label.
+
+    *   text* => *str*
+
+        The text to delete fragment from.
+
+    Return value:
+
+    Returns an enveloped result (an array). First element (status) is an
+    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
+    function error). Second element (msg) is a string containing error
+    message, or 'OK' if status is 200. Third element (result) is optional,
+    the actual result. Fourth element (meta) is called result metadata and
+    is optional, a hash that contains extra information.
+
+  get_fragment(%args) -> [status, msg, result, meta]
+    Get fragment with a certain ID in text.
+
+    If there are multiple occurences of the fragment with the same ID ,
+
+    Arguments ('*' denotes required arguments):
+
+    *   comment_style => *str* (default: "shell")
+
+        Comment style.
+
+    *   id* => *str*
+
+        Fragment ID.
+
+    *   label => *str* (default: "FRAGMENT")
+
+        Comment label.
+
+    *   text* => *str*
+
+        The text which contain fragments.
+
+    Return value:
+
+    Returns an enveloped result (an array). First element (status) is an
+    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
+    function error). Second element (msg) is a string containing error
+    message, or 'OK' if status is 200. Third element (result) is optional,
+    the actual result. Fourth element (meta) is called result metadata and
+    is optional, a hash that contains extra information.
+
+  insert_fragment(%args) -> [status, msg, result, meta]
+    Insert or replace a fragment in text.
+
+    Arguments ('*' denotes required arguments):
+
+    *   attrs => *hash* (default: {})
+
+    *   comment_style => *str* (default: "shell")
+
+        Comment style.
+
+    *   good_pattern => *str*
+
+        Regex pattern which if found means fragment need not be inserted.
+
+    *   id* => *str*
+
+        Fragment ID.
+
+    *   label => *str* (default: "FRAGMENT")
+
+        Comment label.
+
+    *   payload* => *str*
+
+        Fragment content.
+
+    *   replace_pattern => *str*
+
+        Regex pattern which if found will be used for placement of fragment.
+
+        If fragment needs to be inserted into file, then if
+        "replace_pattern" is defined then it will be searched. If found,
+        fragment will be placed to replace the pattern. Otherwise, fragment
+        will be inserted at the end (or beginning, see "top_style") of file.
+
+    *   text* => *str*
+
+        The text to insert fragment into.
+
+    *   top_style => *bool* (default: 0)
+
+        Whether to append fragment at beginning of file instead of at the
+        end.
+
+        Default is false, which means to append at the end of file.
+
+        Note that this only has effect if "replace_pattern" is not defined
+        or replace pattern is not found in file. Otherwise, fragment will be
+        inserted to replace the pattern.
+
+    Return value:
+
+    Returns an enveloped result (an array). First element (status) is an
+    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
+    function error). Second element (msg) is a string containing error
+    message, or 'OK' if status is 200. Third element (result) is optional,
+    the actual result. Fourth element (meta) is called result metadata and
+    is optional, a hash that contains extra information.
+
+  list_fragments(%args) -> [status, msg, result, meta]
+    List fragments in text.
+
+    Arguments ('*' denotes required arguments):
+
+    *   comment_style => *str* (default: "shell")
+
+        Comment style.
+
+    *   label => *str* (default: "FRAGMENT")
+
+        Comment label.
+
+    *   text* => *str*
+
+        The text which contain fragments.
+
+    Return value:
+
+    Returns an enveloped result (an array). First element (status) is an
+    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
+    function error). Second element (msg) is a string containing error
+    message, or 'OK' if status is 200. Third element (result) is optional,
+    the actual result. Fourth element (meta) is called result metadata and
+    is optional, a hash that contains extra information.
+
+  set_fragment_attrs(%args) -> [status, msg, result, meta]
+    Set/unset attributes of a fragment.
+
+    If there are multiple occurences of the fragment with the same ID ,
+
+    Arguments ('*' denotes required arguments):
+
+    *   attrs* => *hash*
+
+        To delete an attribute in the fragment, you can set the value to
+        undef.
+
+    *   comment_style => *str* (default: "shell")
+
+        Comment style.
+
+    *   id* => *str*
+
+        Fragment ID.
+
+    *   label => *str* (default: "FRAGMENT")
+
+        Comment label.
+
+    *   text* => *str*
+
+        The text which contain fragments.
+
+    Return value:
+
+    Returns an enveloped result (an array). First element (status) is an
+    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
+    function error). Second element (msg) is a string containing error
+    message, or 'OK' if status is 200. Third element (result) is optional,
+    the actual result. Fourth element (meta) is called result metadata and
+    is optional, a hash that contains extra information.
+
+AUTHOR
+    Steven Haryanto <stevenharyanto@gmail.com>
+
+COPYRIGHT AND LICENSE
+    This software is copyright (c) 2012 by Steven Haryanto.
+
+    This is free software; you can redistribute it and/or modify it under
+    the same terms as the Perl 5 programming language system itself.
+
