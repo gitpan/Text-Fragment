@@ -1,7 +1,7 @@
 package Text::Fragment;
 
 our $DATE = '2014-10-31'; # DATE
-our $VERSION = '0.02'; # VERSION
+our $VERSION = '0.03'; # VERSION
 
 use 5.010001;
 use strict;
@@ -290,10 +290,13 @@ sub _doit {
 
         if ($top_style) {
             $text = $fragment . $text;
-        } else {
+        } elsif (length($text)) {
             my $enl = $text =~ /\R\z/; # text ends with newline
             $fragment =~ s/\R\z// unless $enl;
             $text .= ($enl ? "" : "\n") . $fragment;
+        } else {
+            # insert at bottom of empty string
+            $text = $fragment;
         }
         return [200, "Fragment inserted at the ".
                     ($top_style ? "top" : "bottom"), {text=>$text}];
@@ -506,7 +509,8 @@ $SPEC{insert_fragment} = {
 
 Newline insertion behaviour: if fragment is inserted at the bottom and text does
 not end with newline (which is considered bad style), the inserted fragment will
-also not end with newline.
+also not end with newline. Except when original text is an empty string, in
+which case an ending newline will still be added.
 
 _
     args => {
@@ -650,7 +654,7 @@ Text::Fragment - Manipulate fragments in text
 
 =head1 VERSION
 
-This document describes version 0.02 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-10-31.
+This document describes version 0.03 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-10-31.
 
 =head1 SYNOPSIS
 
@@ -876,7 +880,8 @@ Insert or replace a fragment in text.
 
 Newline insertion behaviour: if fragment is inserted at the bottom and text does
 not end with newline (which is considered bad style), the inserted fragment will
-also not end with newline.
+also not end with newline. Except when original text is an empty string, in
+which case an ending newline will still be added.
 
 Arguments ('*' denotes required arguments):
 

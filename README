@@ -2,7 +2,7 @@ NAME
     Text::Fragment - Manipulate fragments in text
 
 VERSION
-    This document describes version 0.02 of Text::Fragment (from Perl
+    This document describes version 0.03 of Text::Fragment (from Perl
     distribution Text-Fragment), released on 2014-10-31.
 
 SYNOPSIS
@@ -213,7 +213,9 @@ FUNCTIONS
 
     Newline insertion behaviour: if fragment is inserted at the bottom and
     text does not end with newline (which is considered bad style), the
-    inserted fragment will also not end with newline.
+    inserted fragment will also not end with newline. Except when original
+    text is an empty string, in which case an ending newline will still be
+    added.
 
     Arguments ('*' denotes required arguments):
 
