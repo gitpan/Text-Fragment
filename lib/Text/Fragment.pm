@@ -1,6 +1,9 @@
 package Text::Fragment;
 
-use 5.010;
+our $DATE = '2014-10-31'; # DATE
+our $VERSION = '0.02'; # VERSION
+
+use 5.010001;
 use strict;
 use warnings;
 use Log::Any '$log';
@@ -17,7 +20,7 @@ our @EXPORT_OK = qw(
                        delete_fragment
                );
 
-our $VERSION = '0.01'; # VERSION
+our $re_id = qr/\A[A-Za-z0-9_.,:-]+\z/;
 
 our %SPEC;
 
@@ -31,11 +34,11 @@ sub _label {
     my $a_re;  # regex to match attributes
     my $ai_re; # also match attributes, but attribute id must be present
     if (length $id) {
-        $ai_re = qr/(?:\w+=\S*\s+)*id=(?<id>\Q$id\E)(?:\s+\w+=\S+)*/;
+        $ai_re = qr/(?:\w+=\S*[ \t]+)*id=(?<id>\Q$id\E)(?:[ \t]+\w+=\S+)*/;
     } else {
-        $ai_re = qr/(?:\w+=\S*\s+)*id=(?<id>\S*)(?:\s+\w+=\S+)*/;
+        $ai_re = qr/(?:\w+=\S*[ \t]+)*id=(?<id>\S*)(?:[ \t]+\w+=\S+)*/;
     }
-    $a_re  = qr/(?:\w+=\S*)?(?:\s+\w+=\S*)*/;
+    $a_re  = qr/(?:\w+=\S*)?(?:[ \t]+\w+=\S*)*/;
 
     my ($ts, $te); # tag start and end
     if ($comment_style eq 'shell') {
@@ -58,7 +61,8 @@ sub _label {
     my $ore = qr!^(?<payload>.*?)[ \t]*\Q$ts\E[ \t]*
                  \Q$label\E[ \t]+
                  (?<attrs>$ai_re)[ \t]*
-                 \Q$te\E[ \t]*(?:\R??|\z)!mx;
+                 \Q$te\E[ \t]*(?<enl>\R|\z)!mx;
+
     my $mre = qr!^\Q$ts\E[ \t]*
                  BEGIN[ \t]+\Q$label\E[ \t]+
                  (?<attrs>$ai_re)[ \t]*
@@ -66,18 +70,18 @@ sub _label {
                  (?:
                      (?<payload>.*)
                      ^\Q$ts\E[ \t]*END[ \t]+\Q$label\E[ \t]+
-                       (?:\w+=\S*\s+)*id=\g{id}(?:\s+\w+=\S+)*
+                       (?:\w+=\S*[ \t]+)*id=\g{id}(?:[ \t]+\w+=\S+)*
                        [ \t]*\Q$te\E |
                      (?<payload>.*?) # without any ID at the ending comment
                      ^\Q$ts\E[ \t]*END[ \t]+\Q$label\E(?:[ \t]+$a_re)?[ \t]*
                      \Q$te\E
                  )
-                 [ \t]*(?:\R??|\z)!msx;
+                 [ \t]*(?<enl>\R|\z)!msx;
 
     my $parse_attrs = sub {
         my $s = shift // "";
         my %a;
-        for my $a (split /\s+/, $s) {
+        for my $a (split /[ \t]+/, $s) {
             my ($n, $v) = split /=/, $a, 2;
             $a{$n} = $v;
         }
@@ -105,11 +109,16 @@ sub _label {
 
             my $pl = $f{payload};
 
-           if ($f{is_multi} || $pl =~ /\R/) {
+            # to keep things simple here, regardless of whether the replaced
+            # pattern contains ending newline (enl), we still format with ending
+            # newline. then we'll just need to strip ending newline if it's not
+            # needed.
+
+            if ($f{is_multi} || $pl =~ /\R/) {
                 $pl .= "\n" unless $pl =~ /\R\z/;
                 "$ts BEGIN $label id=$id$as" . ($te ? " $te":"") . "\n" .
                 $pl .
-               "$ts END $label id=$id" . ($te ? " $te":"") . "\n";
+                "$ts END $label id=$id" . ($te ? " $te":"") . "\n";
             } else {
                 "$pl $ts $label id=$id$as" . ($te ? " $te":"") . "\n";
             }
@@ -138,8 +147,8 @@ sub _doit {
         defined($id) or return [400, "Please specify id"];
     }
     if (defined $id) {
-        $id =~ /\A\w+\z/ or return [400, "Invalid id, please use ".
-                                        "letters/numbers only"];
+        $id =~ $re_id or return [400, "Invalid syntax for id, please use ".
+                                     "letters/numbers/dots/dashes only"];
     }
     my $attrs              = $args{attrs} // {};
     for (keys %$attrs) {
@@ -176,8 +185,7 @@ sub _doit {
     if ($which eq 'list') {
 
         my @ff;
-        while ($text =~ /((?: $one_line_pattern | $multi_line_pattern)
-                             (?:\R|\z)?)/xg) {
+        while ($text =~ /($one_line_pattern|$multi_line_pattern)/xg) {
             push @ff, {
                 raw     => $1,
                 id      => $+{id},
@@ -189,8 +197,8 @@ sub _doit {
 
     } elsif ($which eq 'get') {
 
-        if ($text =~ /((?:$one_line_pattern | $multi_line_pattern)
-                          (?:\R|\z)?)/x) {
+        say $one_line_pattern;
+        if ($text =~ /($one_line_pattern|$multi_line_pattern)/x) {
             return [200, "OK", {
                 raw     => $1,
                 id      => $+{id},
@@ -219,8 +227,7 @@ sub _doit {
             $f{attrs} = \%a;
             $format_fragment->(%f);
         };
-        if ($text =~ s{((?:$one_line_pattern | $multi_line_pattern)
-                           (?:\R|\z)?)}
+        if ($text =~ s{$one_line_pattern | $multi_line_pattern}
                       {$sub->(%+)}egx) {
             return [200, "OK", {text=>$text, orig_attrs=>$orig_attrs}];
         } else {
@@ -232,28 +239,13 @@ sub _doit {
         my %f;
         my $sub = sub {
             %f = @_;
-            if ($f{is_multi}) {
-                if (!$f{bnl}) {
-                    return "";
-                } elsif ($f{enl}) {
-                    return "\n";
-                } else {
-                    return "";
-                }
-            } else {
-                if ($f{enl}) {
-                    return "\n";
-                } else {
-                    return "";
-                }
-            }
+            $f{enl} ? $f{bnl} : "";
         };
         if ($text =~ s{(?<bnl>\R?)
-                       (?<fragment>$one_line_pattern | $multi_line_pattern)
-                       (?<enl>\R|\z)}
+                       (?<fragment>$one_line_pattern | $multi_line_pattern)}
                       {$sub->(%+)}egx) {
             return [200, "OK", {text=>$text,
-                                orig_fragment=>$f{fragment} . ($f{enl}//""),
+                                orig_fragment=>$f{fragment},
                                 orig_payload=>$f{payload}}];
         } else {
             return [304, "Fragment with that ID already does not exist"];
@@ -276,8 +268,7 @@ sub _doit {
             return [304, "Text contains good pattern"];
         }
 
-        if ($text =~ s{(?<fragment>(?:$one_line_pattern | $multi_line_pattern)
-                           (?:\R|\z)?)}
+        if ($text =~ s{(?<fragment>(?:$one_line_pattern | $multi_line_pattern))}
                       {$sub->(%+)}ex) {
             if ($replaced) {
                 return [200, "Payload replaced", {
@@ -301,8 +292,8 @@ sub _doit {
             $text = $fragment . $text;
         } else {
             my $enl = $text =~ /\R\z/; # text ends with newline
-            $fragment =~ s/\R\z//;
-            $text .= ($enl ? "" : "\n") . $fragment . ($enl ? "\n" : "");
+            $fragment =~ s/\R\z// unless $enl;
+            $text .= ($enl ? "" : "\n") . $fragment;
         }
         return [200, "Fragment inserted at the ".
                     ($top_style ? "top" : "bottom"), {text=>$text}];
@@ -378,7 +369,6 @@ my $arg_comment_style = {
         in      => [qw/c cpp html shell ini/],
     }],
 };
-
 my $arg_label = {
     schema  => [str => {default=>'FRAGMENT'}],
     summary => 'Comment label',
@@ -512,6 +502,13 @@ sub set_fragment_attrs {
 $SPEC{insert_fragment} = {
     v => 1.1,
     summary => 'Insert or replace a fragment in text',
+    description => <<'_',
+
+Newline insertion behaviour: if fragment is inserted at the bottom and text does
+not end with newline (which is considered bad style), the inserted fragment will
+also not end with newline.
+
+_
     args => {
         text      => {
             summary => 'The text to insert fragment into',
@@ -589,6 +586,10 @@ $SPEC{delete_fragment} = {
 If there are multiple occurences of fragment (which is considered an abnormal
 condition), all occurences will be deleted.
 
+Newline deletion behaviour: if fragment at the bottom of text does not end with
+newline (which is considered bad style), the text after the fragment is deleted
+will also not end with newline.
+
 _
     args => {
         text => {
@@ -603,13 +604,7 @@ _
             req     => 1,
             pos     => 1,
         },
-        comment_style => {
-            summary => 'Comment style',
-            schema  => ['str' => {
-                default => 'shell',
-                in      => [qw/c cpp html shell ini/],
-            }],
-        },
+        comment_style => $arg_comment_style,
         label => {
             schema  => ['any' => {
                 of => ['str*', 'code*'],
@@ -643,9 +638,11 @@ sub delete_fragment {
 1;
 # ABSTRACT: Manipulate fragments in text
 
-
 __END__
+
 =pod
+
+=encoding UTF-8
 
 =head1 NAME
 
@@ -653,7 +650,7 @@ Text::Fragment - Manipulate fragments in text
 
 =head1 VERSION
 
-version 0.01
+This document describes version 0.02 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-10-31.
 
 =head1 SYNOPSIS
 
@@ -717,13 +714,13 @@ encoded in the comment that is put adjacent to it (for a single line fragment)
 or enclosing it (for a multiline fragment). Fragments are usually used in
 configuration files or code. Here is the structure of a single-line fragment:
 
-    <payload> # <label> <attrs>
+ <payload> # <label> <attrs>
 
 Here is the structure of a multi-line fragment:
 
-    # BEGIN <label> <attrs>
-    <payload>
-    # END <label> [<attrs>]
+ # BEGIN <label> <attrs>
+ <payload>
+ # END <label> [<attrs>]
 
 Label is by default C<FRAGMENT> but can be other string. Attributes are a
 sequence of C<name=val> separated by whitespace, where name must be alphanums
@@ -738,39 +735,35 @@ comment styles are supported (see below).
 Examples of single-line fragments (the second example uses C<c>-style comment and
 the third uses C<cpp>-style comment):
 
-    RSYNC_ENABLE=1 # FRAGMENT id=enable
-    some text /* FRAGMENT id=id2 */
-    some text // FRAGMENT id=id3 foo=1 bar=2
+ RSYNC_ENABLE=1 # FRAGMENT id=enable
+ some text /* FRAGMENT id=id2 */
+ some text // FRAGMENT id=id3 foo=1 bar=2
 
 An example of multi-line fragment (using C<html>-style comment instead of
 C<shell>):
 
-    <!-- BEGIN FRAGMENT id=id4 -->
-    some
-    lines
-    of
-    text
-    <!-- END FRAGMENT id=id4 -->
+ <!-- BEGIN FRAGMENT id=id4 -->
+ some
+ lines
+ of
+ text
+ <!-- END FRAGMENT id=id4 -->
 
 Another example (using C<ini>-style comment):
 
-    ; BEGIN FRAGMENT id=default-settings
-    register_globals=On
-    extension=mysql.so
-    extension=gd.so
-    memory_limit=256M
-    post_max_size=64M
-    upload_max_filesize=64M
-    browscap=/c/share/php/browscap.ini
-    allow_url_fopen=0
-    ; END FRAGMENT
-
-This module has L<Rinci> metadata.
+ ; BEGIN FRAGMENT id=default-settings
+ register_globals=On
+ extension=mysql.so
+ extension=gd.so
+ memory_limit=256M
+ post_max_size=64M
+ upload_max_filesize=64M
+ browscap=/c/share/php/browscap.ini
+ allow_url_fopen=0
+ ; END FRAGMENT
 
 =head1 FUNCTIONS
 
-
-None are exported by default, but they are exportable.
 
 =head2 delete_fragment(%args) -> [status, msg, result, meta]
 
@@ -778,6 +771,10 @@ Delete fragment in text.
 
 If there are multiple occurences of fragment (which is considered an abnormal
 condition), all occurences will be deleted.
+
+Newline deletion behaviour: if fragment at the bottom of text does not end with
+newline (which is considered bad style), the text after the fragment is deleted
+will also not end with newline.
 
 Arguments ('*' denotes required arguments):
 
@@ -803,7 +800,27 @@ The text to delete fragment from.
 
 Return value:
 
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+Returns an enveloped result (an array).
+
+First element (status) is an integer containing HTTP status code
+(200 means OK, 4xx caller error, 5xx function error). Second element
+(msg) is a string containing error message, or 'OK' if status is
+200. Third element (result) is optional, the actual result. Fourth
+element (meta) is called result metadata and is optional, a hash
+that contains extra information.
+
+A hash of result (hash)
+
+Will return status 200 if operation is successful and text is deleted. The
+result is a hash with the following keys: `text` will contain the new text,
+`orig_payload` will contain the original fragment payload before being deleted,
+`orig_fragment` will contain the original fragment. If there are multiple
+occurences (which is considered an abnormal condition), only the last deleted
+fragment will be returned in `orig_payload` and `orig_fragment`.
+
+Will return status 304 if nothing is changed (i.e. when the fragment that needs
+to be deleted already does not exist in the text).
+
 
 =head2 get_fragment(%args) -> [status, msg, result, meta]
 
@@ -835,11 +852,31 @@ The text which contain fragments.
 
 Return value:
 
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+Returns an enveloped result (an array).
+
+First element (status) is an integer containing HTTP status code
+(200 means OK, 4xx caller error, 5xx function error). Second element
+(msg) is a string containing error message, or 'OK' if status is
+200. Third element (result) is optional, the actual result. Fourth
+element (meta) is called result metadata and is optional, a hash
+that contains extra information.
+
+Fragment (array)
+
+Will return status 200 if fragment is found. Result will be a hash with the
+following keys: `raw` (string), `payload` (string), `attrs` (hash), `id`
+(string, can also be found in attributes).
+
+Return 404 if fragment is not found.
+
 
 =head2 insert_fragment(%args) -> [status, msg, result, meta]
 
 Insert or replace a fragment in text.
+
+Newline insertion behaviour: if fragment is inserted at the bottom and text does
+not end with newline (which is considered bad style), the inserted fragment will
+also not end with newline.
 
 Arguments ('*' denotes required arguments):
 
@@ -894,7 +931,27 @@ the pattern.
 
 Return value:
 
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+Returns an enveloped result (an array).
+
+First element (status) is an integer containing HTTP status code
+(200 means OK, 4xx caller error, 5xx function error). Second element
+(msg) is a string containing error message, or 'OK' if status is
+200. Third element (result) is optional, the actual result. Fourth
+element (meta) is called result metadata and is optional, a hash
+that contains extra information.
+
+A hash of result (hash)
+
+Will return status 200 if operation is successful and text is changed. The
+result is a hash with the following keys: `text` will contain the new text,
+`orig_payload` will contain the original payload before being removed/replaced,
+`orig_fragment` will contain the original fragment (or the text that matches
+`replace_pattern`).
+
+
+Will return status 304 if nothing is changed (i.e. if fragment with the
+same payload that needs to be inserted already exists in the text).
+
 
 =head2 list_fragments(%args) -> [status, msg, result, meta]
 
@@ -920,7 +977,22 @@ The text which contain fragments.
 
 Return value:
 
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+Returns an enveloped result (an array).
+
+First element (status) is an integer containing HTTP status code
+(200 means OK, 4xx caller error, 5xx function error). Second element
+(msg) is a string containing error message, or 'OK' if status is
+200. Third element (result) is optional, the actual result. Fourth
+element (meta) is called result metadata and is optional, a hash
+that contains extra information.
+
+List of fragments (array)
+
+Will return status 200 if operation is successful. Result will be an array of
+fragments, where each fragment is a hash containing these keys: `raw` (string),
+`payload` (string), `attrs` (hash), `id` (string, can also be found in
+attributes).
+
 
 =head2 set_fragment_attrs(%args) -> [status, msg, result, meta]
 
@@ -956,18 +1028,48 @@ The text which contain fragments.
 
 Return value:
 
-Returns an enveloped result (an array). First element (status) is an integer containing HTTP status code (200 means OK, 4xx caller error, 5xx function error). Second element (msg) is a string containing error message, or 'OK' if status is 200. Third element (result) is optional, the actual result. Fourth element (meta) is called result metadata and is optional, a hash that contains extra information.
+Returns an enveloped result (an array).
+
+First element (status) is an integer containing HTTP status code
+(200 means OK, 4xx caller error, 5xx function error). Second element
+(msg) is a string containing error message, or 'OK' if status is
+200. Third element (result) is optional, the actual result. Fourth
+element (meta) is called result metadata and is optional, a hash
+that contains extra information.
+
+New text and other data (array)
+
+Will return status 200 if fragment is found. Result will be a hash containing
+these keys: `text` (string, the modified text), `orig_attrs` (hash, the old
+attributes before being modified).
+
+Return 404 if fragment is not found.
+
+=head1 HOMEPAGE
+
+Please visit the project's homepage at L<https://metacpan.org/release/Text-Fragment>.
+
+=head1 SOURCE
+
+Source repository is at L<https://github.com/perlancar/perl-Text-Fragment>.
+
+=head1 BUGS
+
+Please report any bugs or feature requests on the bugtracker website L<https://rt.cpan.org/Public/Dist/Display.html?Name=Text-Fragment>
+
+When submitting a bug or request, please include a test-file or a
+patch to an existing test-file that illustrates the bug or desired
+feature.
 
 =head1 AUTHOR
 
-Steven Haryanto <stevenharyanto@gmail.com>
+perlancar <perlancar@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2012 by Steven Haryanto.
+This software is copyright (c) 2014 by perlancar@cpan.org.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =cut
-

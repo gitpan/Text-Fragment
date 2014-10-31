@@ -2,7 +2,8 @@ NAME
     Text::Fragment - Manipulate fragments in text
 
 VERSION
-    version 0.01
+    This document describes version 0.02 of Text::Fragment (from Perl
+    distribution Text-Fragment), released on 2014-10-31.
 
 SYNOPSIS
      use Text::Fragment qw(list_fragments
@@ -64,13 +65,13 @@ DESCRIPTION
     usually used in configuration files or code. Here is the structure of a
     single-line fragment:
 
-        <payload> # <label> <attrs>
+     <payload> # <label> <attrs>
 
     Here is the structure of a multi-line fragment:
 
-        # BEGIN <label> <attrs>
-        <payload>
-        # END <label> [<attrs>]
+     # BEGIN <label> <attrs>
+     <payload>
+     # END <label> [<attrs>]
 
     Label is by default "FRAGMENT" but can be other string. Attributes are a
     sequence of "name=val" separated by whitespace, where name must be
@@ -85,43 +86,43 @@ DESCRIPTION
     Examples of single-line fragments (the second example uses "c"-style
     comment and the third uses "cpp"-style comment):
 
-        RSYNC_ENABLE=1 # FRAGMENT id=enable
-        some text /* FRAGMENT id=id2 */
-        some text // FRAGMENT id=id3 foo=1 bar=2
+     RSYNC_ENABLE=1 # FRAGMENT id=enable
+     some text /* FRAGMENT id=id2 */
+     some text // FRAGMENT id=id3 foo=1 bar=2
 
     An example of multi-line fragment (using "html"-style comment instead of
     "shell"):
 
-        <!-- BEGIN FRAGMENT id=id4 -->
-        some
-        lines
-        of
-        text
-        <!-- END FRAGMENT id=id4 -->
+     <!-- BEGIN FRAGMENT id=id4 -->
+     some
+     lines
+     of
+     text
+     <!-- END FRAGMENT id=id4 -->
 
     Another example (using "ini"-style comment):
 
-        ; BEGIN FRAGMENT id=default-settings
-        register_globals=On
-        extension=mysql.so
-        extension=gd.so
-        memory_limit=256M
-        post_max_size=64M
-        upload_max_filesize=64M
-        browscap=/c/share/php/browscap.ini
-        allow_url_fopen=0
-        ; END FRAGMENT
-
-    This module has Rinci metadata.
+     ; BEGIN FRAGMENT id=default-settings
+     register_globals=On
+     extension=mysql.so
+     extension=gd.so
+     memory_limit=256M
+     post_max_size=64M
+     upload_max_filesize=64M
+     browscap=/c/share/php/browscap.ini
+     allow_url_fopen=0
+     ; END FRAGMENT
 
 FUNCTIONS
-    None are exported by default, but they are exportable.
-
   delete_fragment(%args) -> [status, msg, result, meta]
     Delete fragment in text.
 
     If there are multiple occurences of fragment (which is considered an
     abnormal condition), all occurences will be deleted.
+
+    Newline deletion behaviour: if fragment at the bottom of text does not
+    end with newline (which is considered bad style), the text after the
+    fragment is deleted will also not end with newline.
 
     Arguments ('*' denotes required arguments):
 
@@ -143,12 +144,27 @@ FUNCTIONS
 
     Return value:
 
-    Returns an enveloped result (an array). First element (status) is an
-    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
-    function error). Second element (msg) is a string containing error
-    message, or 'OK' if status is 200. Third element (result) is optional,
-    the actual result. Fourth element (meta) is called result metadata and
-    is optional, a hash that contains extra information.
+    Returns an enveloped result (an array).
+
+    First element (status) is an integer containing HTTP status code (200
+    means OK, 4xx caller error, 5xx function error). Second element (msg) is
+    a string containing error message, or 'OK' if status is 200. Third
+    element (result) is optional, the actual result. Fourth element (meta)
+    is called result metadata and is optional, a hash that contains extra
+    information.
+
+    A hash of result (hash)
+
+    Will return status 200 if operation is successful and text is deleted.
+    The result is a hash with the following keys: `text` will contain the
+    new text, `orig_payload` will contain the original fragment payload
+    before being deleted, `orig_fragment` will contain the original
+    fragment. If there are multiple occurences (which is considered an
+    abnormal condition), only the last deleted fragment will be returned in
+    `orig_payload` and `orig_fragment`.
+
+    Will return status 304 if nothing is changed (i.e. when the fragment
+    that needs to be deleted already does not exist in the text).
 
   get_fragment(%args) -> [status, msg, result, meta]
     Get fragment with a certain ID in text.
@@ -175,15 +191,29 @@ FUNCTIONS
 
     Return value:
 
-    Returns an enveloped result (an array). First element (status) is an
-    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
-    function error). Second element (msg) is a string containing error
-    message, or 'OK' if status is 200. Third element (result) is optional,
-    the actual result. Fourth element (meta) is called result metadata and
-    is optional, a hash that contains extra information.
+    Returns an enveloped result (an array).
+
+    First element (status) is an integer containing HTTP status code (200
+    means OK, 4xx caller error, 5xx function error). Second element (msg) is
+    a string containing error message, or 'OK' if status is 200. Third
+    element (result) is optional, the actual result. Fourth element (meta)
+    is called result metadata and is optional, a hash that contains extra
+    information.
+
+    Fragment (array)
+
+    Will return status 200 if fragment is found. Result will be a hash with
+    the following keys: `raw` (string), `payload` (string), `attrs` (hash),
+    `id` (string, can also be found in attributes).
+
+    Return 404 if fragment is not found.
 
   insert_fragment(%args) -> [status, msg, result, meta]
     Insert or replace a fragment in text.
+
+    Newline insertion behaviour: if fragment is inserted at the bottom and
+    text does not end with newline (which is considered bad style), the
+    inserted fragment will also not end with newline.
 
     Arguments ('*' denotes required arguments):
 
@@ -235,12 +265,25 @@ FUNCTIONS
 
     Return value:
 
-    Returns an enveloped result (an array). First element (status) is an
-    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
-    function error). Second element (msg) is a string containing error
-    message, or 'OK' if status is 200. Third element (result) is optional,
-    the actual result. Fourth element (meta) is called result metadata and
-    is optional, a hash that contains extra information.
+    Returns an enveloped result (an array).
+
+    First element (status) is an integer containing HTTP status code (200
+    means OK, 4xx caller error, 5xx function error). Second element (msg) is
+    a string containing error message, or 'OK' if status is 200. Third
+    element (result) is optional, the actual result. Fourth element (meta)
+    is called result metadata and is optional, a hash that contains extra
+    information.
+
+    A hash of result (hash)
+
+    Will return status 200 if operation is successful and text is changed.
+    The result is a hash with the following keys: `text` will contain the
+    new text, `orig_payload` will contain the original payload before being
+    removed/replaced, `orig_fragment` will contain the original fragment (or
+    the text that matches `replace_pattern`).
+
+    Will return status 304 if nothing is changed (i.e. if fragment with the
+    same payload that needs to be inserted already exists in the text).
 
   list_fragments(%args) -> [status, msg, result, meta]
     List fragments in text.
@@ -261,12 +304,21 @@ FUNCTIONS
 
     Return value:
 
-    Returns an enveloped result (an array). First element (status) is an
-    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
-    function error). Second element (msg) is a string containing error
-    message, or 'OK' if status is 200. Third element (result) is optional,
-    the actual result. Fourth element (meta) is called result metadata and
-    is optional, a hash that contains extra information.
+    Returns an enveloped result (an array).
+
+    First element (status) is an integer containing HTTP status code (200
+    means OK, 4xx caller error, 5xx function error). Second element (msg) is
+    a string containing error message, or 'OK' if status is 200. Third
+    element (result) is optional, the actual result. Fourth element (meta)
+    is called result metadata and is optional, a hash that contains extra
+    information.
+
+    List of fragments (array)
+
+    Will return status 200 if operation is successful. Result will be an
+    array of fragments, where each fragment is a hash containing these keys:
+    `raw` (string), `payload` (string), `attrs` (hash), `id` (string, can
+    also be found in attributes).
 
   set_fragment_attrs(%args) -> [status, msg, result, meta]
     Set/unset attributes of a fragment.
@@ -298,18 +350,43 @@ FUNCTIONS
 
     Return value:
 
-    Returns an enveloped result (an array). First element (status) is an
-    integer containing HTTP status code (200 means OK, 4xx caller error, 5xx
-    function error). Second element (msg) is a string containing error
-    message, or 'OK' if status is 200. Third element (result) is optional,
-    the actual result. Fourth element (meta) is called result metadata and
-    is optional, a hash that contains extra information.
+    Returns an enveloped result (an array).
+
+    First element (status) is an integer containing HTTP status code (200
+    means OK, 4xx caller error, 5xx function error). Second element (msg) is
+    a string containing error message, or 'OK' if status is 200. Third
+    element (result) is optional, the actual result. Fourth element (meta)
+    is called result metadata and is optional, a hash that contains extra
+    information.
+
+    New text and other data (array)
+
+    Will return status 200 if fragment is found. Result will be a hash
+    containing these keys: `text` (string, the modified text), `orig_attrs`
+    (hash, the old attributes before being modified).
+
+    Return 404 if fragment is not found.
+
+HOMEPAGE
+    Please visit the project's homepage at
+    <https://metacpan.org/release/Text-Fragment>.
+
+SOURCE
+    Source repository is at
+    <https://github.com/perlancar/perl-Text-Fragment>.
+
+BUGS
+    Please report any bugs or feature requests on the bugtracker website
+    <https://rt.cpan.org/Public/Dist/Display.html?Name=Text-Fragment>
+
+    When submitting a bug or request, please include a test-file or a patch
+    to an existing test-file that illustrates the bug or desired feature.
 
 AUTHOR
-    Steven Haryanto <stevenharyanto@gmail.com>
+    perlancar <perlancar@cpan.org>
 
 COPYRIGHT AND LICENSE
-    This software is copyright (c) 2012 by Steven Haryanto.
+    This software is copyright (c) 2014 by perlancar@cpan.org.
 
     This is free software; you can redistribute it and/or modify it under
     the same terms as the Perl 5 programming language system itself.
