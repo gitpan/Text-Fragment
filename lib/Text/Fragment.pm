@@ -1,7 +1,7 @@
 package Text::Fragment;
 
-our $DATE = '2014-10-31'; # DATE
-our $VERSION = '0.03'; # VERSION
+our $DATE = '2014-11-09'; # DATE
+our $VERSION = '0.04'; # VERSION
 
 use 5.010001;
 use strict;
@@ -197,7 +197,6 @@ sub _doit {
 
     } elsif ($which eq 'get') {
 
-        say $one_line_pattern;
         if ($text =~ /($one_line_pattern|$multi_line_pattern)/x) {
             return [200, "OK", {
                 raw     => $1,
@@ -654,7 +653,7 @@ Text::Fragment - Manipulate fragments in text
 
 =head1 VERSION
 
-This document describes version 0.03 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-10-31.
+This document describes version 0.04 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-11-09.
 
 =head1 SYNOPSIS
 
@@ -1056,7 +1055,7 @@ Please visit the project's homepage at L<https://metacpan.org/release/Text-Fragm
 
 =head1 SOURCE
 
-Source repository is at L<https://github.com/perlancar/perl-Text-Fragment>.
+Source repository is at L<https://github.com/sharyanto/perl-Text-Fragment>.
 
 =head1 BUGS
 
