@@ -2,8 +2,8 @@ NAME
     Text::Fragment - Manipulate fragments in text
 
 VERSION
-    This document describes version 0.05 of Text::Fragment (from Perl
-    distribution Text-Fragment), released on 2014-11-16.
+    This document describes version 0.06 of Text::Fragment (from Perl
+    distribution Text-Fragment), released on 2014-11-17.
 
 SYNOPSIS
      use Text::Fragment qw(list_fragments
