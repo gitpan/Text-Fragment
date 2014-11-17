@@ -1,7 +1,7 @@
 package Text::Fragment;
 
-our $DATE = '2014-11-09'; # DATE
-our $VERSION = '0.04'; # VERSION
+our $DATE = '2014-11-16'; # DATE
+our $VERSION = '0.05'; # VERSION
 
 use 5.010001;
 use strict;
@@ -103,7 +103,7 @@ sub _label {
                 }
             } else {
                 my $a = $parse_attrs->($f{attrs});
-                $as = join(" ", map {"$_=$a->{$_}"} grep {$_ ne 'id'}
+                $as = join("", map {" $_=$a->{$_}"} grep {$_ ne 'id'}
                     sort keys %$a);
             }
 
@@ -653,7 +653,7 @@ Text::Fragment - Manipulate fragments in text
 
 =head1 VERSION
 
-This document describes version 0.04 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-11-09.
+This document describes version 0.05 of Text::Fragment (from Perl distribution Text-Fragment), released on 2014-11-16.
 
 =head1 SYNOPSIS
 
